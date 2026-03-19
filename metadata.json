@@ -1,0 +1,5 @@
+{
+  "name": "Escuta Ativa",
+  "description": "Portal GovTech para monitoramento de pesquisas de campo, gestão de equipes e atendimento ao cidadão.",
+  "requestFramePermissions": ["geolocation"]
+}
