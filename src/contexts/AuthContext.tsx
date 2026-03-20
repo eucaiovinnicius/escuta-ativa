@@ -1,7 +1,9 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Usuario } from '../types';
-import { getUsuarios } from '../services/storage';
+import { getUsuarios, saveUsuario } from '../services/storage';
+import { sbGetUsuarios } from '../services/supabaseService';
+import { isSupabaseEnabled } from '../lib/supabase';
 
 interface AuthContextType {
   user: Usuario | null;
@@ -33,11 +35,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = async (email: string, senha: string): Promise<boolean> => {
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 150));
+    // 1. Tenta encontrar localmente primeiro (rápido para quem já usou o app)
+    let allUsers = getUsuarios();
+    let foundUser = allUsers.find(u => u.email === email && u.senha === senha && u.ativo);
 
-    const allUsers = getUsuarios();
-    const foundUser = allUsers.find(u => u.email === email && u.senha === senha && u.ativo);
+    // 2. Se não encontrou e o Supabase está ativado, tenta buscar do banco
+    // Isso resolve o problema de novos usuários que ainda não sincronizaram o cache local
+    if (!foundUser && isSupabaseEnabled()) {
+      try {
+        const sbUsers = await sbGetUsuarios();
+        if (sbUsers) {
+          // Salva todos os usuários retornados no cache local
+          sbUsers.forEach(u => saveUsuario(u));
+          
+          // Tenta encontrar novamente na lista recém baixada
+          foundUser = sbUsers.find(u => u.email === email && u.senha === senha && u.ativo);
+        }
+      } catch (e) {
+        console.error('[Auth] Erro ao buscar usuários do Supabase no login:', e);
+      }
+    }
 
     if (foundUser) {
       const { senha: _, ...userWithoutPassword } = foundUser;
